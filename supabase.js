@@ -44,7 +44,28 @@ const SB = (() => {
     return true;
   }
 
-  return { get, post, patch };
+  async function upsert(path, body) {
+    const res = await fetch(`${base}/${path}`, {
+      method: "POST",
+      headers: { ...headers, "Prefer": "resolution=merge-duplicates,return=representation" },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    const text = await res.text();
+    return text ? JSON.parse(text) : null;
+  }
+
+  async function del(path, params = {}) {
+    const q = new URLSearchParams(params).toString();
+    const res = await fetch(`${base}/${path}${q ? "?" + q : ""}`, {
+      method: "DELETE",
+      headers: { ...headers, "Prefer": "return=minimal" },
+    });
+    if (!res.ok) throw new Error(await res.text());
+    return true;
+  }
+
+  return { get, post, patch, upsert, del };
 })();
 
 /* ────────────────────────────────────────────────────────────────
@@ -119,6 +140,16 @@ const SBAPI = {
   /* สินค้า reorder alert */
   async getLowStock() {
     return SB.post("get_low_stock", {});
+  },
+
+  /* บันทึก / อัปเดตสินค้า (upsert by id) */
+  async saveProduct(p) {
+    return SB.upsert("products", p);
+  },
+
+  /* ลบสินค้า */
+  async deleteProduct(id) {
+    return SB.del("products", { id: `eq.${id}` });
   },
 };
 
