@@ -33,7 +33,7 @@ function TransactionForm({ kind, lang, onNav }) {
   const [toWh, setToWh] = uState(kind === "INBOUND" ? "WH-BKK" : (kind === "TRANSFER" ? "WH-CBI" : ""));
   const [partner, setPartner] = uState("");
   const [reason, setReason] = uState(0);
-  const [operator, setOperator] = uState(W.operators[0]);
+  const [operator, setOperator] = uState("");
   const [docRef, setDocRef] = uState("");
   const [lines, setLines] = uState([]);
   const [search, setSearch] = uState("");
@@ -42,7 +42,7 @@ function TransactionForm({ kind, lang, onNav }) {
   uEffect(() => { // reset everything when switching transaction kind
     setFromWh(kind === "INBOUND" ? "" : "WH-BKK");
     setToWh(kind === "INBOUND" ? "WH-BKK" : (kind === "TRANSFER" ? "WH-CBI" : ""));
-    setPartner(""); setReason(0); setDocRef(""); setLines([]); setSearch(""); setPosted(null);
+    setPartner(""); setReason(0); setDocRef(""); setLines([]); setSearch(""); setPosted(null); setOperator("");
   }, [kind]);
 
   const srcWh = kind === "INBOUND" ? null : fromWh;
@@ -82,7 +82,7 @@ function TransactionForm({ kind, lang, onNav }) {
       partner: cfg.needs.includes("partner") ? partner : undefined,
       reason: kind === "DAMAGE" ? W.damageReasons[reason] : undefined,
       docRef: docRef.trim() || undefined,
-      operator,
+      operator: operator.trim() || "—",
     };
     post(payload);
     pushToast({
@@ -123,10 +123,10 @@ function TransactionForm({ kind, lang, onNav }) {
                 React.createElement(WhField, { label: T("Destination warehouse", "คลังปลายทาง"), value: toWh, onChange: setToWh, lang, exclude: kind === "TRANSFER" ? fromWh : null }),
               cfg.needs.includes("partner") &&
                 React.createElement("div", { className: "field" },
-                  React.createElement("label", null, T(cfg.partyEn, cfg.partyTh)),
-                  React.createElement("select", { className: "select", value: partner, onChange: (e) => setPartner(e.target.value) },
-                    React.createElement("option", { value: "" }, T("Select…", "เลือก…")),
-                    W[cfg.partyList].map((x) => React.createElement("option", { key: x, value: x }, x)))),
+                  React.createElement("label", null, T(cfg.partyEn, cfg.partyTh),
+                    React.createElement("span", { className: "opt" }, " *")),
+                  React.createElement("input", { className: "input", value: partner, onChange: (e) => setPartner(e.target.value),
+                    placeholder: kind === "INBOUND" ? T("e.g. ABC Co., Ltd.", "เช่น บริษัท ABC จำกัด") : T("e.g. XYZ Supermarket", "เช่น ซูเปอร์มาร์เก็ต XYZ") })),
               kind === "DAMAGE" &&
                 React.createElement("div", { className: "field" },
                   React.createElement("label", null, T("Damage reason", "สาเหตุความเสียหาย")),
@@ -139,8 +139,8 @@ function TransactionForm({ kind, lang, onNav }) {
                   placeholder: { INBOUND: "e.g. INV-2026-0148", OUTBOUND: "e.g. PO-LOTUS-88421", TRANSFER: "e.g. TRF-REQ-0091", DAMAGE: "e.g. QA-2026-014" }[kind] })),
               React.createElement("div", { className: "field" },
                 React.createElement("label", null, T("Operator", "ผู้ทำรายการ")),
-                React.createElement("select", { className: "select", value: operator, onChange: (e) => setOperator(e.target.value) },
-                  W.operators.map((o) => React.createElement("option", { key: o, value: o }, o)))))),
+                React.createElement("input", { className: "input", value: operator, onChange: (e) => setOperator(e.target.value),
+                  placeholder: T("Enter name…", "กรอกชื่อผู้ทำรายการ…") })))),
 
           // step 2 — product lines
           React.createElement("div", { className: "card" },
