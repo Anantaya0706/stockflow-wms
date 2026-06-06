@@ -3,6 +3,18 @@
    =================================================================== */
 
 /* ══════════════════════════════════════════════════════════════════
+   FormField — นิยามนอก component เพื่อไม่ให้ unmount เมื่อ state เปลี่ยน
+   ══════════════════════════════════════════════════════════════════ */
+function FormField({ id, label, required, children, hint, errors }) {
+  return React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 5 } },
+    React.createElement("label", { style: { fontSize: 12, fontWeight: 600, color: "var(--ink-2)" } },
+      label, required && React.createElement("span", { style: { color: "var(--neg)", marginLeft: 2 } }, "*")),
+    children,
+    errors && errors[id] && React.createElement("span", { style: { fontSize: 11, color: "var(--neg)" } }, errors[id]),
+    hint && !(errors && errors[id]) && React.createElement("span", { style: { fontSize: 11, color: "var(--ink-3)" } }, hint));
+}
+
+/* ══════════════════════════════════════════════════════════════════
    MODAL: เพิ่มสินค้าใหม่ด้วยมือ
    ══════════════════════════════════════════════════════════════════ */
 function AddProductModal({ lang, onClose, onSaved }) {
@@ -48,20 +60,11 @@ function AddProductModal({ lang, onClose, onSaved }) {
     }
   }
 
-  /* ── label + input helper ── */
-  function Field({ id, label, required, children, hint }) {
-    return React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 5 } },
-      React.createElement("label", { style: { fontSize: 12, fontWeight: 600, color: "var(--ink-2)" } },
-        label, required && React.createElement("span", { style: { color: "var(--neg)", marginLeft: 2 } }, "*")),
-      children,
-      errors[id] && React.createElement("span", { style: { fontSize: 11, color: "var(--neg)" } }, errors[id]),
-      hint && !errors[id] && React.createElement("span", { style: { fontSize: 11, color: "var(--ink-3)" } }, hint));
-  }
-
-  function inp(k, placeholder, type = "text") {
+  /* ── input helper (ไม่ใช่ component — return element ตรงๆ) ── */
+  function inp(k, placeholder, type) {
     return React.createElement("input", {
       className: "select", style: { width: "100%", border: errors[k] ? "1.5px solid var(--neg)" : "" },
-      type, placeholder, value: form[k], onChange: set(k),
+      type: type || "text", placeholder, value: form[k], onChange: set(k),
     });
   }
 
@@ -98,13 +101,13 @@ function AddProductModal({ lang, onClose, onSaved }) {
           React.createElement("div", { style: { fontSize: 11, fontWeight: 700, color: "var(--ink-3)", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 12 } },
             T("Basic Info", "ข้อมูลพื้นฐาน")),
           React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 } },
-            React.createElement(Field, { id: "sku", label: "SKU / รหัสสินค้า", required: true },
+            React.createElement(FormField, { id: "sku", label: "SKU / รหัสสินค้า", required: true, errors },
               inp("sku", "เช่น HGS-TAP-S-001")),
-            React.createElement(Field, { id: "brand", label: T("Brand", "แบรนด์"), required: true },
+            React.createElement(FormField, { id: "brand", label: T("Brand", "แบรนด์"), required: true, errors },
               inp("brand", "เช่น Huggies, Mamy Poko")),
-            React.createElement(Field, { id: "nameEn", label: T("Product name (EN)", "ชื่อสินค้า (ภาษาอังกฤษ)"), required: true },
+            React.createElement(FormField, { id: "nameEn", label: T("Product name (EN)", "ชื่อสินค้า (ภาษาอังกฤษ)"), required: true, errors },
               inp("nameEn", "Huggies Gold Tape S")),
-            React.createElement(Field, { id: "nameTh", label: "ชื่อสินค้า (ภาษาไทย)" },
+            React.createElement(FormField, { id: "nameTh", label: "ชื่อสินค้า (ภาษาไทย)", errors },
               inp("nameTh", "ฮักกี้ส์ โกลด์ เทป ไซส์ S")))),
 
         /* section: ลักษณะสินค้า */
@@ -112,21 +115,21 @@ function AddProductModal({ lang, onClose, onSaved }) {
           React.createElement("div", { style: { fontSize: 11, fontWeight: 700, color: "var(--ink-3)", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 12 } },
             T("Product Details", "รายละเอียดสินค้า")),
           React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14 } },
-            React.createElement(Field, { id: "category", label: T("Category / Type", "ประเภทสินค้า") },
+            React.createElement(FormField, { id: "category", label: T("Category / Type", "ประเภทสินค้า"), errors },
               React.createElement("select", { className: "select", value: form.category, onChange: set("category") },
                 React.createElement("option", { value: "" }, T("— Select —", "— เลือก —")),
                 CATEGORIES.map(c => React.createElement("option", { key: c, value: c }, c)))),
-            React.createElement(Field, { id: "size", label: T("Size", "ไซส์"), hint: "S / M / L / XL / XXL / NB …" },
+            React.createElement(FormField, { id: "size", label: T("Size", "ไซส์"), hint: "S / M / L / XL / XXL / NB …", errors },
               inp("size", "S")),
-            React.createElement(Field, { id: "ean", label: T("Barcode (EAN)", "บาร์โค้ด EAN"), hint: T("13-digit EAN, optional", "13 หลัก (ถ้ามี)") },
+            React.createElement(FormField, { id: "ean", label: T("Barcode (EAN)", "บาร์โค้ด EAN"), hint: T("13-digit EAN, optional", "13 หลัก (ถ้ามี)"), errors },
               inp("ean", "8851234567890")),
-            React.createElement(Field, { id: "piecesPerCtn", label: T("Pcs per carton", "ชิ้น/ลัง"), hint: T("Number of pieces per carton", "") },
+            React.createElement(FormField, { id: "piecesPerCtn", label: T("Pcs per carton", "ชิ้น/ลัง"), hint: T("Number of pieces per carton", ""), errors },
               inp("piecesPerCtn", "1", "number")),
-            React.createElement(Field, { id: "uom", label: "UOM" },
+            React.createElement(FormField, { id: "uom", label: "UOM", errors },
               React.createElement("select", { className: "select", value: form.uom, onChange: set("uom") },
                 ["Unit", "Carton", "Pack", "Bag", "Box"].map(u =>
                   React.createElement("option", { key: u, value: u }, u)))),
-            React.createElement(Field, { id: "reorder", label: T("Reorder point (ctn)", "จุดสั่งซื้อ (ลัง)") },
+            React.createElement(FormField, { id: "reorder", label: T("Reorder point (ctn)", "จุดสั่งซื้อ (ลัง)"), errors },
               inp("reorder", "0", "number")))),
 
         /* section: ราคา */
@@ -134,9 +137,9 @@ function AddProductModal({ lang, onClose, onSaved }) {
           React.createElement("div", { style: { fontSize: 11, fontWeight: 700, color: "var(--ink-3)", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 12 } },
             T("Pricing", "ราคา")),
           React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 } },
-            React.createElement(Field, { id: "cost", label: T("Unit cost (฿/ctn)", "ราคาทุน (฿/ลัง)"), required: true },
+            React.createElement(FormField, { id: "cost", label: T("Unit cost (฿/ctn)", "ราคาทุน (฿/ลัง)"), required: true, errors },
               inp("cost", "0.00", "number")),
-            React.createElement(Field, { id: "price", label: T("Selling price (฿/ctn)", "ราคาขาย (฿/ลัง)"), required: true },
+            React.createElement(FormField, { id: "price", label: T("Selling price (฿/ctn)", "ราคาขาย (฿/ลัง)"), required: true, errors },
               inp("price", "0.00", "number"))))),
 
       /* footer */
