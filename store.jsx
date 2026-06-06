@@ -83,6 +83,11 @@ function reducer(state, action) {
       });
       return { ...state, stock, movements: [...newMoves, ...state.movements] };
     }
+    case "DELETE_PRODUCT_OFFLINE": {
+      const stock = cloneStock(state.stock);
+      delete stock[action.id];
+      return { ...state, stock };
+    }
     case "ADD_PRODUCT_OFFLINE": {
       /* เพิ่ม stock key ว่าง ๆ สำหรับสินค้าใหม่ */
       const stock = cloneStock(state.stock);
@@ -214,14 +219,65 @@ function WMSProvider({ children }) {
     }
   }, [useSupa, warehouses, products]);
 
+  /* ── แก้ไขสินค้า ── */
+  const editProduct = useCallback(async (id, formData) => {
+    const updatedProd = {
+      id, sku: id,
+      name:      formData.nameEn  || formData.nameTh || id,
+      nameTh:    formData.nameTh  || formData.nameEn || id,
+      brand:     formData.brand   || "",
+      brandTh:   formData.brand   || "",
+      size:      formData.size    || "",
+      sizeTh:    formData.size    || "",
+      weight:    "",
+      form:      formData.category || "",
+      formTh:    formData.category || "",
+      count:     parseInt(formData.piecesPerCtn) || 1,
+      uomPcs:    parseInt(formData.piecesPerCtn) || 1,
+      uom:       formData.uom     || "Unit",
+      ean:       formData.ean     || "",
+      cost:      parseFloat(formData.cost)  || 0,
+      price:     parseFloat(formData.price) || 0,
+      reorder:   parseInt(formData.reorder) || 0,
+      category:  formData.category || "",
+      categoryTh: formData.category || "",
+      shelfLife: "", origin: "",
+    };
+    if (useSupa) {
+      const dbRow = {
+        id, sku: id,
+        name: updatedProd.name, name_th: updatedProd.nameTh,
+        brand: updatedProd.brand, brand_th: updatedProd.brand,
+        size: updatedProd.size, size_th: updatedProd.size,
+        form: updatedProd.form, form_th: updatedProd.form,
+        pieces_per_ctn: updatedProd.count,
+        uom: updatedProd.uom, ean: updatedProd.ean || null,
+        cost: updatedProd.cost, price: updatedProd.price,
+        reorder_point: updatedProd.reorder,
+        category: updatedProd.category, category_th: updatedProd.categoryTh,
+      };
+      await window.SBAPI.saveProduct(dbRow);
+      const dbProducts = await window.SBAPI.getProducts();
+      const mp = dbProducts.map(mapProduct);
+      overrideWMS(mp, warehouses);
+      setProducts(mp);
+    } else {
+      const mp = products.map(p => p.id === id ? updatedProd : p);
+      overrideWMS(mp, warehouses);
+      setProducts(mp);
+    }
+  }, [useSupa, warehouses, products]);
+
   /* ── ลบสินค้า ── */
   const deleteProduct = useCallback(async (id) => {
     if (useSupa) {
       await window.SBAPI.deleteProduct(id);
-      const mp = products.filter(p => p.id !== id);
-      overrideWMS(mp, warehouses);
-      setProducts(mp);
     }
+    const mp = products.filter(p => p.id !== id);
+    overrideWMS(mp, warehouses);
+    setProducts(mp);
+    /* offline: ลบ stock row ด้วย */
+    if (!useSupa) dispatch({ type: "DELETE_PRODUCT_OFFLINE", id });
   }, [useSupa, products, warehouses]);
 
   /* ── reset ── */
@@ -256,7 +312,7 @@ function WMSProvider({ children }) {
 
   return React.createElement(WMSStore.Provider, {
     value: { state, post, reset, pushToast, toasts, selectors, useSupa,
-             products, warehouses, addProduct, deleteProduct },
+             products, warehouses, addProduct, editProduct, deleteProduct },
   }, children);
 }
 

@@ -15,14 +15,30 @@ function FormField({ id, label, required, children, hint, errors }) {
 }
 
 /* ══════════════════════════════════════════════════════════════════
-   MODAL: เพิ่มสินค้าใหม่ด้วยมือ
+   ProductFormModal — Add (existing=null) หรือ Edit (existing=product)
    ══════════════════════════════════════════════════════════════════ */
-function AddProductModal({ lang, onClose, onSaved }) {
-  const { addProduct, pushToast } = useWMS();
+const PROD_CATEGORIES = ["Tape", "Pants", "Pull-up", "Swim Pants", "Training Pants", "Newborn", "Other"];
+
+function ProductFormModal({ lang, onClose, onSaved, existing }) {
+  const { addProduct, editProduct, pushToast } = useWMS();
+  const isEdit = existing != null;
   const T = (en, th) => lang === "th" ? th : en;
 
   const [saving, setSaving] = uState(false);
-  const [form, setForm] = uState({
+  const [form, setForm] = uState(() => isEdit ? {
+    sku:          existing.sku || existing.id,
+    nameEn:       existing.name    || "",
+    nameTh:       existing.nameTh  || "",
+    brand:        existing.brand   || "",
+    category:     existing.form    || existing.category || "",
+    size:         existing.size    || "",
+    piecesPerCtn: String(existing.count || existing.uomPcs || 1),
+    uom:          existing.uom     || "Unit",
+    ean:          existing.ean     || "",
+    cost:         String(existing.cost  || ""),
+    price:        String(existing.price || ""),
+    reorder:      String(existing.reorder || 0),
+  } : {
     sku: "", nameEn: "", nameTh: "",
     brand: "", category: "", size: "",
     piecesPerCtn: "1", uom: "Unit",
@@ -32,14 +48,12 @@ function AddProductModal({ lang, onClose, onSaved }) {
 
   const set = (k) => (e) => setForm(f => ({ ...f, [k]: e.target.value }));
 
-  const CATEGORIES = ["Tape", "Pants", "Pull-up", "Swim Pants", "Training Pants", "Newborn", "Other"];
-
   function validate() {
     const e = {};
-    if (!form.sku.trim())    e.sku    = T("Required", "จำเป็น");
+    if (!isEdit && !form.sku.trim()) e.sku = T("Required", "จำเป็น");
     if (!form.nameEn.trim() && !form.nameTh.trim()) e.nameEn = T("At least one name required", "ต้องกรอกชื่ออย่างน้อย 1 ภาษา");
-    if (!form.brand.trim())  e.brand  = T("Required", "จำเป็น");
-    if (isNaN(parseFloat(form.cost)) || parseFloat(form.cost) < 0) e.cost = T("Enter valid cost", "กรุณากรอกราคาทุน");
+    if (!form.brand.trim()) e.brand = T("Required", "จำเป็น");
+    if (isNaN(parseFloat(form.cost))  || parseFloat(form.cost)  < 0) e.cost  = T("Enter valid cost",  "กรุณากรอกราคาทุน");
     if (isNaN(parseFloat(form.price)) || parseFloat(form.price) < 0) e.price = T("Enter valid price", "กรุณากรอกราคาขาย");
     setErrors(e);
     return Object.keys(e).length === 0;
@@ -49,8 +63,13 @@ function AddProductModal({ lang, onClose, onSaved }) {
     if (!validate()) return;
     setSaving(true);
     try {
-      await addProduct(form);
-      pushToast({ kind: "INBOUND", icon: "check", title: T("Product added", "เพิ่มสินค้าแล้ว"), msg: form.sku.trim().toUpperCase() });
+      if (isEdit) {
+        await editProduct(existing.id, form);
+        pushToast({ kind: "INBOUND", icon: "check", title: T("Product updated", "อัปเดตสินค้าแล้ว"), msg: existing.id });
+      } else {
+        await addProduct(form);
+        pushToast({ kind: "INBOUND", icon: "check", title: T("Product added", "เพิ่มสินค้าแล้ว"), msg: form.sku.trim().toUpperCase() });
+      }
       onSaved();
       onClose();
     } catch (err) {
@@ -60,70 +79,63 @@ function AddProductModal({ lang, onClose, onSaved }) {
     }
   }
 
-  /* ── input helper (ไม่ใช่ component — return element ตรงๆ) ── */
-  function inp(k, placeholder, type) {
+  function inp(k, placeholder, type, readOnly) {
     return React.createElement("input", {
-      className: "select", style: { width: "100%", border: errors[k] ? "1.5px solid var(--neg)" : "" },
-      type: type || "text", placeholder, value: form[k], onChange: set(k),
+      className: "select",
+      style: { width: "100%", border: errors[k] ? "1.5px solid var(--neg)" : "", background: readOnly ? "var(--surface-2)" : "" },
+      type: type || "text", placeholder, value: form[k],
+      onChange: readOnly ? undefined : set(k),
+      readOnly: !!readOnly,
     });
   }
 
-  const overlay = {
-    position: "fixed", inset: 0, background: "oklch(0 0 0 / 0.45)",
-    display: "grid", placeItems: "center", zIndex: 999, padding: 20,
-  };
-  const modal = {
-    background: "var(--surface)", borderRadius: 16,
-    boxShadow: "0 24px 64px oklch(0 0 0 / 0.22)",
-    width: "100%", maxWidth: 680, maxHeight: "90vh",
-    overflow: "auto", display: "flex", flexDirection: "column",
-  };
+  const overlay = { position: "fixed", inset: 0, background: "oklch(0 0 0 / 0.45)", display: "grid", placeItems: "center", zIndex: 999, padding: 20 };
+  const modal   = { background: "var(--surface)", borderRadius: 16, boxShadow: "0 24px 64px oklch(0 0 0 / 0.22)", width: "100%", maxWidth: 680, maxHeight: "90vh", overflow: "auto", display: "flex", flexDirection: "column" };
+  const secHd   = { fontSize: 11, fontWeight: 700, color: "var(--ink-3)", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 12 };
 
   return React.createElement("div", { style: overlay, onClick: (e) => e.target === e.currentTarget && onClose() },
     React.createElement("div", { style: modal },
 
-      /* header */
+      /* ── header ── */
       React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 12, padding: "18px 24px", borderBottom: "1px solid var(--line)" } },
-        React.createElement("div", { style: { width: 36, height: 36, borderRadius: 10, background: "var(--accent-soft)", display: "grid", placeItems: "center", color: "var(--accent)" } },
-          React.createElement(Icon, { name: "plus", size: 18 })),
+        React.createElement("div", { style: { width: 36, height: 36, borderRadius: 10, background: isEdit ? "oklch(0.93 0.04 240)" : "var(--accent-soft)", display: "grid", placeItems: "center", color: isEdit ? "oklch(0.45 0.12 240)" : "var(--accent)" } },
+          React.createElement(Icon, { name: isEdit ? "edit" : "plus", size: 18 })),
         React.createElement("div", null,
-          React.createElement("div", { style: { fontWeight: 700, fontSize: 15 } }, T("Add New Product", "เพิ่มสินค้าใหม่")),
-          React.createElement("div", { style: { fontSize: 12, color: "var(--ink-3)" } }, T("Fill in the details below", "กรอกข้อมูลสินค้าด้านล่าง"))),
+          React.createElement("div", { style: { fontWeight: 700, fontSize: 15 } }, isEdit ? T("Edit Product", "แก้ไขสินค้า") : T("Add New Product", "เพิ่มสินค้าใหม่")),
+          React.createElement("div", { style: { fontSize: 12, color: "var(--ink-3)" } }, isEdit ? (existing.sku || existing.id) : T("Fill in the details below", "กรอกข้อมูลสินค้าด้านล่าง"))),
         React.createElement("div", { style: { marginLeft: "auto" } },
           React.createElement("button", { className: "btn sm ghost", onClick: onClose },
             React.createElement(Icon, { name: "x", size: 16 })))),
 
-      /* body */
+      /* ── body ── */
       React.createElement("div", { style: { padding: "20px 24px", display: "flex", flexDirection: "column", gap: 20 } },
 
-        /* section: ข้อมูลพื้นฐาน */
+        /* ข้อมูลพื้นฐาน */
         React.createElement("div", null,
-          React.createElement("div", { style: { fontSize: 11, fontWeight: 700, color: "var(--ink-3)", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 12 } },
-            T("Basic Info", "ข้อมูลพื้นฐาน")),
+          React.createElement("div", { style: secHd }, T("Basic Info", "ข้อมูลพื้นฐาน")),
           React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 } },
-            React.createElement(FormField, { id: "sku", label: "SKU / รหัสสินค้า", required: true, errors },
-              inp("sku", "เช่น HGS-TAP-S-001")),
+            React.createElement(FormField, { id: "sku", label: "SKU / รหัสสินค้า", required: !isEdit, errors },
+              inp("sku", "เช่น PVI-TAP-S-001", "text", isEdit)),
             React.createElement(FormField, { id: "brand", label: T("Brand", "แบรนด์"), required: true, errors },
-              inp("brand", "เช่น Huggies, Mamy Poko")),
-            React.createElement(FormField, { id: "nameEn", label: T("Product name (EN)", "ชื่อสินค้า (ภาษาอังกฤษ)"), required: true, errors },
-              inp("nameEn", "Huggies Gold Tape S")),
-            React.createElement(FormField, { id: "nameTh", label: "ชื่อสินค้า (ภาษาไทย)", errors },
-              inp("nameTh", "ฮักกี้ส์ โกลด์ เทป ไซส์ S")))),
+              inp("brand", "เช่น Agewell, Mamy Poko")),
+            React.createElement(FormField, { id: "nameEn", label: T("Product name (EN)", "ชื่อสินค้า (อังกฤษ)"), required: true, errors },
+              inp("nameEn", "Agewell Gold Tape S")),
+            React.createElement(FormField, { id: "nameTh", label: "ชื่อสินค้า (ไทย)", errors },
+              inp("nameTh", "เอจเวล โกลด์ เทป S")))),
 
-        /* section: ลักษณะสินค้า */
+        /* ลักษณะสินค้า */
         React.createElement("div", null,
-          React.createElement("div", { style: { fontSize: 11, fontWeight: 700, color: "var(--ink-3)", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 12 } },
-            T("Product Details", "รายละเอียดสินค้า")),
+          React.createElement("div", { style: secHd }, T("Product Details", "รายละเอียดสินค้า")),
           React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 14 } },
-            React.createElement(FormField, { id: "category", label: T("Category / Type", "ประเภทสินค้า"), errors },
+            React.createElement(FormField, { id: "category", label: T("Category / Type", "ประเภท"), errors },
               React.createElement("select", { className: "select", value: form.category, onChange: set("category") },
                 React.createElement("option", { value: "" }, T("— Select —", "— เลือก —")),
-                CATEGORIES.map(c => React.createElement("option", { key: c, value: c }, c)))),
-            React.createElement(FormField, { id: "size", label: T("Size", "ไซส์"), hint: "S / M / L / XL / XXL / NB …", errors },
+                PROD_CATEGORIES.map(c => React.createElement("option", { key: c, value: c }, c)))),
+            React.createElement(FormField, { id: "size", label: T("Size", "ไซส์"), hint: "S / M / L / XL / XXL / NB", errors },
               inp("size", "S")),
-            React.createElement(FormField, { id: "ean", label: T("Barcode (EAN)", "บาร์โค้ด EAN"), hint: T("13-digit EAN, optional", "13 หลัก (ถ้ามี)"), errors },
+            React.createElement(FormField, { id: "ean", label: "Barcode (EAN)", hint: T("optional", "ถ้ามี"), errors },
               inp("ean", "8851234567890")),
-            React.createElement(FormField, { id: "piecesPerCtn", label: T("Pcs per carton", "ชิ้น/ลัง"), hint: T("Number of pieces per carton", ""), errors },
+            React.createElement(FormField, { id: "piecesPerCtn", label: T("Pcs / carton", "ชิ้น / ลัง"), errors },
               inp("piecesPerCtn", "1", "number")),
             React.createElement(FormField, { id: "uom", label: "UOM", errors },
               React.createElement("select", { className: "select", value: form.uom, onChange: set("uom") },
@@ -132,25 +144,22 @@ function AddProductModal({ lang, onClose, onSaved }) {
             React.createElement(FormField, { id: "reorder", label: T("Reorder point (ctn)", "จุดสั่งซื้อ (ลัง)"), errors },
               inp("reorder", "0", "number")))),
 
-        /* section: ราคา */
+        /* ราคา */
         React.createElement("div", null,
-          React.createElement("div", { style: { fontSize: 11, fontWeight: 700, color: "var(--ink-3)", letterSpacing: "0.08em", textTransform: "uppercase", marginBottom: 12 } },
-            T("Pricing", "ราคา")),
+          React.createElement("div", { style: secHd }, T("Pricing", "ราคา")),
           React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 } },
-            React.createElement(FormField, { id: "cost", label: T("Unit cost (฿/ctn)", "ราคาทุน (฿/ลัง)"), required: true, errors },
-              inp("cost", "0.00", "number")),
+            React.createElement(FormField, { id: "cost",  label: T("Unit cost (฿/ctn)",  "ราคาทุน (฿/ลัง)"),  required: true, errors },
+              inp("cost",  "0.00", "number")),
             React.createElement(FormField, { id: "price", label: T("Selling price (฿/ctn)", "ราคาขาย (฿/ลัง)"), required: true, errors },
               inp("price", "0.00", "number"))))),
 
-      /* footer */
+      /* ── footer ── */
       React.createElement("div", { style: { display: "flex", justifyContent: "flex-end", gap: 10, padding: "16px 24px", borderTop: "1px solid var(--line)", background: "var(--surface-2)" } },
         React.createElement("button", { className: "btn ghost", onClick: onClose, disabled: saving },
           T("Cancel", "ยกเลิก")),
-        React.createElement("button", { className: "btn primary", onClick: handleSave, disabled: saving,
-          style: { minWidth: 130 } },
-          saving
-            ? React.createElement("span", { style: { opacity: 0.7 } }, T("Saving…", "กำลังบันทึก…"))
-            : [React.createElement(Icon, { key: "i", name: "check", size: 15 }), T("Save Product", "บันทึกสินค้า")]))
+        React.createElement("button", { className: "btn primary", onClick: handleSave, disabled: saving, style: { minWidth: 130 } },
+          saving ? T("Saving…", "กำลังบันทึก…")
+                 : T(isEdit ? "Save Changes" : "Save Product", isEdit ? "บันทึกการแก้ไข" : "บันทึกสินค้า")))
     )
   );
 }
@@ -174,8 +183,9 @@ function Products({ lang, onNav, openScanner }) {
   const brands = ["ALL", ...new Set(products.map((p) => p.brand))];
 
   return React.createElement("div", { className: "page" },
-    showAdd && React.createElement(AddProductModal, {
-      lang, onClose: () => setShowAdd(false),
+    showAdd && React.createElement(ProductFormModal, {
+      lang, existing: null,
+      onClose: () => setShowAdd(false),
       onSaved: () => setTick(t => t + 1),
     }),
 
@@ -275,10 +285,16 @@ function ProductCard({ p, total, lang, onNav }) {
    PRODUCT DETAIL
    ══════════════════════════════════════════════════════════════════ */
 function ProductDetail({ productId, lang, onNav, openScanner }) {
-  const { state, selectors, products } = useWMS();
+  const { state, selectors, products, deleteProduct, pushToast } = useWMS();
   const W = window.WMS;
   const T = (en, th) => lang === "th" ? th : en;
-  const p = (window.WMS.prodById || {})[productId] || products.find(x => x.id === productId);
+
+  const [showEdit, setShowEdit]         = uState(false);
+  const [confirmDelete, setConfirmDelete] = uState(false);
+  const [deleting, setDeleting]         = uState(false);
+
+  /* ค้นหาจาก products ใน context (อัปเดตทุกครั้งที่ save) */
+  const p = products.find(x => x.id === productId) || (window.WMS.prodById || {})[productId];
   if (!p) return React.createElement("div", { className: "page" }, "Not found");
 
   const total = selectors.totalForProduct(p.id);
@@ -300,7 +316,28 @@ function ProductDetail({ productId, lang, onNav, openScanner }) {
     ["Reorder point", "จุดสั่งซื้อ", W.fmt(p.reorder) + " " + T("ctn", "ลัง"), true],
   ];
 
+  async function handleDelete() {
+    setDeleting(true);
+    try {
+      await deleteProduct(p.id);
+      pushToast({ kind: "DAMAGE", icon: "damage", title: T("Product deleted", "ลบสินค้าแล้ว"), msg: p.sku || p.id });
+      onNav("products");
+    } catch (err) {
+      pushToast({ kind: "DAMAGE", icon: "damage", title: "Error", msg: err.message });
+      setDeleting(false);
+      setConfirmDelete(false);
+    }
+  }
+
   return React.createElement("div", { className: "page" },
+
+    /* ── Edit modal ── */
+    showEdit && React.createElement(ProductFormModal, {
+      lang, existing: p,
+      onClose: () => setShowEdit(false),
+      onSaved: () => setShowEdit(false),
+    }),
+
     React.createElement("button", { className: "btn sm ghost", style: { marginBottom: 14 }, onClick: () => onNav("products") },
       React.createElement(Icon, { name: "chevL", size: 15 }), T("All products", "สินค้าทั้งหมด")),
 
@@ -310,14 +347,27 @@ function ProductDetail({ productId, lang, onNav, openScanner }) {
         React.createElement("div", null,
           React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 10 } },
             React.createElement("div", { className: "page-title" }, p.brand + (p.form ? " " + p.form : "") + (p.size ? " " + p.size : "")),
-            React.createElement("span", { className: `badge ${st === 2 ? "red" : st === 1 ? "amber" : "green"}` },
+            React.createElement("span", { className: "badge " + (st === 2 ? "red" : st === 1 ? "amber" : "green") },
               st === 2 ? T("Reorder", "สั่งซื้อ") : st === 1 ? T("Low stock", "สต็อกต่ำ") : T("In stock", "พร้อมขาย"))),
           React.createElement("div", { className: "page-sub" }, (lang === "th" ? p.nameTh : p.name) + " · " + p.sku))),
       React.createElement("div", { className: "spacer" }),
-      React.createElement("button", { className: "btn sm", onClick: openScanner },
-        React.createElement(Icon, { name: "scan", size: 15 }), T("Re-scan (OCR)", "สแกนใหม่")),
-      React.createElement("button", { className: "btn sm" },
-        React.createElement(Icon, { name: "edit", size: 15 }), T("Edit", "แก้ไข"))),
+
+      /* ── Delete confirm inline ── */
+      confirmDelete
+        ? React.createElement("div", { style: { display: "flex", alignItems: "center", gap: 8, background: "oklch(0.97 0.02 25)", border: "1.5px solid var(--neg)", borderRadius: 10, padding: "7px 14px" } },
+            React.createElement("span", { style: { fontSize: 12.5, color: "var(--neg)", fontWeight: 600 } },
+              T("Delete this product?", "ลบสินค้านี้ออก?")),
+            React.createElement("button", { className: "btn sm", onClick: () => setConfirmDelete(false), disabled: deleting },
+              T("Cancel", "ยกเลิก")),
+            React.createElement("button", { className: "btn sm", style: { background: "var(--neg)", color: "#fff", borderColor: "var(--neg)" }, onClick: handleDelete, disabled: deleting },
+              deleting ? T("Deleting…", "กำลังลบ…") : T("Confirm Delete", "ยืนยันลบ")))
+        : React.createElement("div", { style: { display: "flex", gap: 8 } },
+            React.createElement("button", { className: "btn sm", onClick: openScanner },
+              React.createElement(Icon, { name: "scan", size: 15 }), T("Re-scan (OCR)", "สแกนใหม่")),
+            React.createElement("button", { className: "btn sm", onClick: () => setShowEdit(true) },
+              React.createElement(Icon, { name: "edit", size: 15 }), T("Edit", "แก้ไข")),
+            React.createElement("button", { className: "btn sm", style: { color: "var(--neg)", borderColor: "var(--neg)" }, onClick: () => setConfirmDelete(true) },
+              React.createElement(Icon, { name: "x", size: 14 }), T("Delete", "ลบ")))),
 
     React.createElement("div", { className: "grid", style: { gridTemplateColumns: "340px 1fr", alignItems: "start" } },
       // left column
@@ -374,4 +424,4 @@ function ProductDetail({ productId, lang, onNav, openScanner }) {
   );
 }
 
-Object.assign(window, { Products, ProductCard, ProductDetail, AddProductModal });
+Object.assign(window, { Products, ProductCard, ProductDetail, ProductFormModal });
