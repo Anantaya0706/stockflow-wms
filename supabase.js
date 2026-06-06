@@ -3,8 +3,8 @@
    แก้ไข SUPABASE_URL และ SUPABASE_ANON_KEY ด้านล่างก่อนใช้งาน
    =================================================================== */
 
-const SUPABASE_URL      = "REPLACE_WITH_YOUR_PROJECT_URL";   // https://xxxx.supabase.co
-const SUPABASE_ANON_KEY = "REPLACE_WITH_YOUR_ANON_KEY";      // eyJhbG...
+const SUPABASE_URL      = "https://wcyykrwxyfcqwmdfipew.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_ebgVP4VreTuPEdpMLe0k4Q_dQm46V76";
 
 /* สร้าง lightweight Supabase REST client (ไม่ต้องใช้ npm) */
 const SB = (() => {
