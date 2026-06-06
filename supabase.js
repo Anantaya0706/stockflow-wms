@@ -4,7 +4,7 @@
    =================================================================== */
 
 const SUPABASE_URL      = "https://wcyykrwxyfcqwmdfipew.supabase.co";
-const SUPABASE_ANON_KEY = "sb_publishable_ebgVP4VreTuPEdpMLe0k4Q_dQm46V76";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndjeXlrcnd4eWZjcXdtZGZpcGV3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODA3NjQ3MTgsImV4cCI6MjA5NjM0MDcxOH0.h2yI4YIzauuatqCLgbgYT7ONhjgAdgG2utQePBs8ESE";
 
 /* สร้าง lightweight Supabase REST client (ไม่ต้องใช้ npm) */
 const SB = (() => {

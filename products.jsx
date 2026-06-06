@@ -147,7 +147,7 @@ function AddProductModal({ lang, onClose, onSaved }) {
           style: { minWidth: 130 } },
           saving
             ? React.createElement("span", { style: { opacity: 0.7 } }, T("Saving…", "กำลังบันทึก…"))
-            : [React.createElement(Icon, { key: "i", name: "check", size: 15 }), T("Save Product", "บันทึกสินค้า")])))
+            : [React.createElement(Icon, { key: "i", name: "check", size: 15 }), T("Save Product", "บันทึกสินค้า")]))
     )
   );
 }
